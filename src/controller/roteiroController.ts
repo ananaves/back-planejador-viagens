@@ -1,74 +1,127 @@
-// Importa a conexão com o banco
-import { DatabaseModel } from '../model/DatabaseModel';
+import { Request, Response } from "express";
+import { DatabaseModel } from "../model/DatabaseModel";
+import { Roteiro } from "../model/Roteiro";
 
-// ========= Criar um novo roteiro =================
-exports.criarRoteiro = async (req, res) => {
-    const {cidade_partida, cidade_destino, data_ida, data_volta, distancia, tempo_estimado, orcamento } = req.body;
+// Interface para os dados do roteiro
+interface RoteiroDTO {
+  cidade_partida: string;
+  cidade_destino: string;
+  data_ida: Date;
+  data_volta: Date;
+  distancia: number;
+  tempo_estimado: string;
+  orcamento: number;
+}
 
-    // Assumimos que req.usuarioId foi setado pelo middleware de autenticação
-    const usuario_id = req.usuarioId;
+// Instância do database para acesso ao pool
+const database = new DatabaseModel();
 
+export class RoteiroController {
+
+static async lista(req: Request, res: Response): Promise<any> {
     try {
-        const resultado = await pool.query('INSERT INTO roteiros (usuario_id, cidade_partida, cidade_destino, data_ida, data_volta, distancia, tempo_estimado, orcamento) VALUES $1, $2, $3, $4, $5, $6, $7, $8) RETURNING *', [usuario_id, cidade_partida, cidade_destino, data_ida, data_volta, distancia, tempo_estimado, orcamento]);
-        res.status(201).json({mensagem: 'Roteiro criado com sucesso!', roteiro: resultado.rowCount[0]});
+      // Acessa a função de listar os roteiros e armazena o resultado
+      const listaDeRoteiros = await Roteiro.listarRoteiros();
+
+      // Retorna a lista de roteiros para quem fez a requisição
+      return res.status(200).json(listaDeRoteiros);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({mensagem: 'Erro ao criar roteiro.'});
+      // Lança uma mensagem de erro no console
+      console.error('Erro ao acessar a listagem de roteiros', error);
+
+      // Retorna uma mensagem de erro para quem fez a requisição
+      return res.status(400).json({ mensagem: "Não foi possível acessar a listagem de roteiros" });
     }
-};
+  }
 
-
-// ========== Listar todos os roteiros do usuario ========================
-exports.getRoteiros = async (req, res) => {
-    const usuario_id = req.usuarioId;
-
+  static async novo(req: Request, res: Response): Promise<any> {
     try {
-        const resultado = await Pool.query('SELECT * FROM roteiros WHERE usuario_id = $1', [usuario_id]);
-        res.json({roteiros: resultado.rows});
+      const dados: RoteiroDTO = req.body;
+      const usuario_id = (req as any).usuarioId;
+
+      const resultado = await database.pool.query(
+        `INSERT INTO roteiros 
+         (usuario_id, cidade_partida, cidade_destino, data_ida, data_volta, distancia, tempo_estimado, orcamento) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          usuario_id,
+          dados.cidade_partida,
+          dados.cidade_destino,
+          dados.data_ida,
+          dados.data_volta,
+          dados.distancia,
+          dados.tempo_estimado,
+          dados.orcamento
+        ]
+      );
+
+      if (resultado.rows.length > 0) {
+        return res.status(201).json({ mensagem: "Roteiro criado com sucesso!", roteiro: resultado.rows[0] });
+      } else {
+        return res.status(400).json({ mensagem: "Erro ao cadastrar o roteiro. Contate o administrador." });
+      }
     } catch (error) {
-        console.error(error);
-        res.status(500).json({mensagem: 'Erro ao buscar roteiros.'});
+      console.error(`Erro ao cadastrar roteiro. ${error}`);
+      return res.status(400).json({ mensagem: "Não foi possível cadastrar o roteiro. Contate o administrador." });
     }
-};
+  }
 
-
-// =========== ATUALIZAR UM ROTEIRO =========================
-exports.updateRoteiro = async (req, res) => {
-    const {id} = req.params;
-    const {cidade_partida, cidade_destino, data_ida, data_volta, distancia, tempo_estimado, orcamento } = req.body;
-    const usuario_id = req.usuarioId;
-
+  static async remover(req: Request, res: Response): Promise<any> {
     try {
-        const resultado =  await Pool.query('UPDATE roteiros SET cidade_partida = $1, cidade_destino = $2, data_ida = $3, data_volta = $4, distancia = $5, tempo_estimado = $6, orcamento = $7 RETURNING *', [cidade_partida, cidade_destino, data_ida, data_volta, distancia, tempo_estimado, orcamento, id, usuario_id]);
-        if (resultado.rows.lengh == 0) {
-            return res.status(400).json({mensagem: 'Roteiro não encontrado ou sem permissão.'});
-        }
+      const idRoteiro = parseInt(req.query.idRoteiro as string);
+      const usuario_id = (req as any).usuarioId;
 
-        res.json({mensagem: 'Roteiro atualizado com sucesso!', roteiro: resultado.rows[0]});
+      const resultado = await database.pool.query(
+        "DELETE FROM roteiros WHERE id = $1 AND usuario_id = $2 RETURNING *",
+        [idRoteiro, usuario_id]
+      );
+
+      if (resultado.rows.length > 0) {
+        return res.status(200).json("Roteiro removido com sucesso");
+      } else {
+        return res.status(400).json("Erro ao deletar o roteiro");
+      }
     } catch (error) {
-        console.error(error);
-        res.status(500).json({mensagem: 'Erro ao atualizar roteiro'});
+      console.error("Erro ao remover o roteiro", error);
+      return res.status(500).send("Erro interno");
     }
-};
+  }
 
-//========= DELETAR ROTEIRO =====================
-exports.deleteRoteiro = async (req, res) => {
-    const { id } = req.params;
-    const user_id = req.userId;
-
+  static async atualizar(req: Request, res: Response): Promise<any> {
     try {
-        const result = await pool.query(
-            'DELETE FROM roteiros WHERE id = $1 AND usuario_id = $2 RETURNING *',
-            [id, user_id]
-        );
+      const dados: RoteiroDTO = req.body;
+      const idRoteiro = parseInt(req.query.idRoteiro as string);
+      const usuario_id = (req as any).usuarioId;
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'Roteiro não encontrado ou sem permissão.' });
-        }
+      const resultado = await database.pool.query(
+        `UPDATE roteiros
+         SET cidade_partida = $1, cidade_destino = $2, data_ida = $3, data_volta = $4,
+             distancia = $5, tempo_estimado = $6, orcamento = $7
+         WHERE id = $8 AND usuario_id = $9
+         RETURNING *`,
+        [
+          dados.cidade_partida,
+          dados.cidade_destino,
+          dados.data_ida,
+          dados.data_volta,
+          dados.distancia,
+          dados.tempo_estimado,
+          dados.orcamento,
+          idRoteiro,
+          usuario_id
+        ]
+      );
 
-        res.json({ message: 'Roteiro deletado com sucesso!' });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Erro ao deletar roteiro.' });
+      if (resultado.rows.length > 0) {
+        return res.status(200).json({ mensagem: "Roteiro atualizado com sucesso!", roteiro: resultado.rows[0] });
+      } else {
+        return res.status(400).json("Não foi possível atualizar o roteiro no banco de dados");
+      }
+    } catch (error) {
+      console.error(`Erro ao atualizar roteiro: ${error}`);
+      return res.status(500).json({ mensagem: "Erro ao atualizar o roteiro." });
     }
-};
+  }
+}
+
+export default RoteiroController;

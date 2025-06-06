@@ -1,64 +1,70 @@
-// Importa o bcrypt para hash de senha
-const bcrypt = require('bcrypt');
+import { Request, Response } from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { DatabaseModel } from "../model/DatabaseModel";
 
-// Importa o jwt para gerar o token
-const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || "senha_secreta";
 
-// Importa o pool de conexão do POstgreSQL
-import { DatabaseModel } from '../model/DatabaseModel';
+// Cria instância da classe para acessar o pool
+const database = new DatabaseModel();
 
+export class AuthController {
+    
+    static async register(req: Request, res: Response): Promise<any> {
+        const { email, senha } = req.body;
 
-// Define um segredo para assinar o token JWT (armazenar no .env)
-const JWT_SECRET = process.env.JWT_SECRET || 'senha_secreta';
+        try {
+            // Agora uso database.pool.query, e não DatabaseModel.query
+            const usuarioExistente = await database.pool.query('SELECT * FROM usuario WHERE email = $1', [email]);
 
-// ========= FUNÇÃO DE REGISTRO =============
-exports.register = async (req, res) => {
-    const {email, senha} = req.body;
+            if (usuarioExistente.rows.length > 0) {
+                return res.status(400).json({ mensagem: "Usuário já existe!" });
+            }
 
-    try {
-        //verifica se o usuario ja existe no banco
-        const usuarioExistente = await pool.query('SELECT * FROM usuario WHERE email = $1', [email]);
-        if (usuarioExistente.rows.lengh > 0) {
-            return res.status(400).json({mensagem: 'Usuario já existe!'});
+            const hashedSenha = await bcrypt.hash(senha, 10);
+
+            await database.pool.query(
+                'INSERT INTO usuario (email, senha) VALUES ($1, $2)',
+                [email, hashedSenha]
+            );
+
+            return res.status(201).json({ mensagem: "Usuário registrado com sucesso!" });
+
+        } catch (error) {
+            console.error("Erro no registro:", error);
+            return res.status(500).json({ mensagem: "Erro ao registrar usuário." });
         }
-        // Gerar um hash da senha
-        const hashedSenha = await bcrypt.hash(senha, 10);
-
-        // Insere o novo usuario no banco
-        await pool.query('INSERT INTO usuario (email, senha) VALUES ($1, $2)', [email, hashedSenha]);
-
-        res.status(201).json({mensagem: 'usuario reguistrado com sucesso!'});
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({mensagem: 'Erro ao registrar usuario.'});
     }
-};
 
+    static async login(req: Request, res: Response): Promise<any> {
+        const { email, senha } = req.body;
 
-// =========== FUNÇÃO DE LOGIN =============
-exports.login = async (req, res) => {
-    const {email, senha} = req.body;
+        try {
+            const usuario = await database.pool.query('SELECT * FROM usuario WHERE email = $1', [email]);
 
-    try {
-        //Busca o usuario pelo email
-        const usuario = await pool.query('SELECT * FROM usuario WHERE email = $1', [email]);
-        if (usuario.rows.lengh == 0) {
-            return res.status(400).json({mensagem: 'Usuario não encontrado.'});
+            if (usuario.rows.length === 0) {
+                return res.status(400).json({ mensagem: "Usuário não encontrado." });
+            }
+
+            const isMatch = await bcrypt.compare(senha, usuario.rows[0].senha);
+            if (!isMatch) {
+                return res.status(400).json({ mensagem: "Senha incorreta." });
+            }
+
+            const token = jwt.sign(
+                { usuarioId: usuario.rows[0].id },
+                JWT_SECRET,
+                { expiresIn: "1h" }
+            );
+
+            return res.status(200).json({
+                mensagem: "Login bem-sucedido!",
+                token
+            });
+
+        } catch (error) {
+            console.error("Erro no login:", error);
+            return res.status(500).json({ mensagem: "Erro ao fazer login." });
         }
-
-        //Compara a senha fornecida com a senha hash
-        const isMatch = await bcrypt.compare(senha, usuario.rows[0].senha);
-        if (!isMatch) {
-            return res.status(400).json({mensagem: 'Senha incorreta.'});
-        }
-
-        // Gera um token JWT
-        const token = jwt.sign({usuarioId: usuario.rows[0].id}, JWT_SECRET, {expiresIn: '1h'});
-        res.json({token, mensagem: 'Login bem-sucedido!'});
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({mensagem: 'Erro ao fazer login'});
     }
-};
-
-
+}
