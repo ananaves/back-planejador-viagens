@@ -5,7 +5,7 @@ import Roteiro from "./controller/roteiroController";
 const router = Router();
 
 // Rota para listar todos os usuários
-router.get("/usuarios", Usuario.lista);
+router.get("/usuario", Usuario.lista);
 
 // Rota para cadastrar novo usuário
 router.post("/novo/usuario", Usuario.novo);
@@ -18,7 +18,7 @@ router.delete("/remover/usuario", Usuario.remover);
 
 
 // Rota para listar todos os roteiros
-router.get("/roteiros", Roteiro.lista);
+router.get("/roteiro", Roteiro.lista);
 
 // Rota para cadastrar novo usuário
 router.post("/novo/roteiro", Roteiro.novo);

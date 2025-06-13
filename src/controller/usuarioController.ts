@@ -4,9 +4,7 @@ import { Usuario } from "../model/Usuario";
 interface UsuarioDTO {
   nome: string;
   email: string;
-  senha: string;
-  telefone?: string;        // Você pode incluir se o model suportar
-  dataNascimento?: Date;    // Também se suportar no model
+  senha: string;  
 }
 
 export class UsuarioController {

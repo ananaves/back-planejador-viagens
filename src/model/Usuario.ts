@@ -72,7 +72,7 @@ export class Usuario {
 
     try {
         // Consulta para buscar todos os usuários ativos (exemplo com status_usuario)
-        const querySelectUsuario = `SELECT * FROM usuarios`;
+        const querySelectUsuario = `SELECT * FROM usuario`;
 
         // Executa a consulta no banco
         const respostaBD = await database.query(querySelectUsuario);
@@ -86,7 +86,7 @@ export class Usuario {
             );
 
             // Atribui o ID do usuário (supondo que a coluna seja id_usuario)
-            novoUsuario.setId(linha.id_usuario);
+            novoUsuario.setId(linha.user_id);
             // Se tiver campo status_usuario, você pode criar e setar esse atributo também, se quiser
 
             // Adiciona o objeto à lista
@@ -113,8 +113,8 @@ export class Usuario {
     static async criarUsuario(usuario: Usuario): Promise<boolean> {
         try {
             const query = `
-                INSERT INTO usuarios (nome, email, senha)
-                VALUES ($1, $2, $3) RETURNING id
+                INSERT INTO usuario (nome, email, senha)
+                VALUES ($1, $2, $3) RETURNING id_usuario
             `;
             const result = await database.query(query, [usuario.getNome(), usuario.getEmail(), usuario.getSenha()]);
 
@@ -136,7 +136,7 @@ static async atualizarUsuario(usuario: Usuario): Promise<boolean> {
 
     try {
         const queryAtualizarUsuario = `
-            UPDATE usuarios SET
+            UPDATE usuario SET
                 nome = '${usuario.getNome()}',
                 email = '${usuario.getEmail()}',
                 senha = '${usuario.getSenha()}'
@@ -158,7 +158,7 @@ static async atualizarUsuario(usuario: Usuario): Promise<boolean> {
 }
 
 
-static async removerUsuario(id_usuario: number): Promise<boolean> {
+static async removerUsuario(user_id: number): Promise<boolean> {
     let queryResult = false;
 
     try {
@@ -167,15 +167,15 @@ static async removerUsuario(id_usuario: number): Promise<boolean> {
         const queryUpdateRelacionado = `
             UPDATE outra_tabela
             SET status = FALSE
-            WHERE id_usuario = ${id_usuario}
+            WHERE user_id = ${user_id}
         `;
         await database.query(queryUpdateRelacionado);
 
         // Atualiza o status do usuário para "inativo" no banco de dados
         const queryDeleteUsuario = `
-            UPDATE usuarios
+            UPDATE usuario
             SET status_usuario = FALSE
-            WHERE id = ${id_usuario}
+            WHERE id = ${user_id}
         `;
 
         const result = await database.query(queryDeleteUsuario);
@@ -201,7 +201,7 @@ static async removerUsuario(id_usuario: number): Promise<boolean> {
      */
     static async buscarPorEmail(email: string): Promise<Usuario | null> {
         try {
-            const query = `SELECT * FROM usuarios WHERE email = $1`;
+            const query = `SELECT * FROM usuario WHERE email = $1`;
             const result = await database.query(query, [email]);
 
             if (result.rows.length > 0) {
@@ -226,7 +226,7 @@ static async removerUsuario(id_usuario: number): Promise<boolean> {
      */
     static async buscarPorId(id: number): Promise<Usuario | null> {
         try {
-            const query = `SELECT * FROM usuarios WHERE id = $1`;
+            const query = `SELECT * FROM usuario WHERE id = $1`;
             const result = await database.query(query, [id]);
 
             if (result.rows.length > 0) {
